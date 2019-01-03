@@ -18,7 +18,8 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import logging
+from collections import OrderedDict
+import json
 import ntpath
 import os
 import posixpath
@@ -28,15 +29,14 @@ import sys
 import tempfile
 import zipfile
 
+from aboutcode.util import to_posix
 
-from attributecode.util import add_unc
-from attributecode.util import to_posix
-
-
-logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-handler.setLevel(logging.DEBUG)
-logger.addHandler(handler)
+try:
+    # Python 2
+    unicode  # NOQA
+except NameError:  # pragma: nocover
+    # Python 3
+    unicode = str  # NOQA
 
 
 TESTDATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'testdata')
@@ -68,7 +68,7 @@ def create_dir(location):
                  | stat.S_IROTH | stat.S_IXOTH)
 
 
-def build_temp_dir(prefix='test-attributecode-'):
+def build_temp_dir(prefix='test-aboutcode-'):
     """
     Create and return a new unique empty directory created in base_dir.
     """
@@ -77,7 +77,7 @@ def build_temp_dir(prefix='test-attributecode-'):
     return location
 
 
-def get_temp_file(file_name='test-attributecode-tempfile'):
+def get_temp_file(file_name='test-aboutcode-tempfile'):
     """
     Return a unique new temporary file location to a non-existing
     temporary file that can safely be created without a risk of name
@@ -99,7 +99,7 @@ def get_temp_dir(sub_dir_path=None):
 
     if sub_dir_path:
         # create a sub directory hierarchy if requested
-        new_temp_dir = os.path.join(new_temp_dir, sub_dir_path)
+        new_temp_dir = posixpath.join(new_temp_dir, sub_dir_path)
         create_dir(new_temp_dir)
     return new_temp_dir
 
@@ -135,10 +135,7 @@ def extract_test_loc(path, extract_func=extract_zip):
     archive file has been extracted using extract_func.
     """
     archive = get_test_loc(path)
-    if on_windows:
-        target_dir = add_unc(get_temp_dir())
-    else:
-        target_dir = get_temp_dir()
+    target_dir = get_temp_dir()
     extract_func(archive, target_dir)
     return target_dir
 
@@ -152,13 +149,13 @@ def run_about_command_test(options, expected_rc=0):
     root_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
     about_cmd = os.path.join(root_dir, 'about')
     args = [about_cmd] + options
-    about = subprocess.Popen(
+    runner = subprocess.Popen(
         args,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         shell=True if on_windows else False)
-    stdout, stderr = about.communicate()
-    rc = about.poll()
+    stdout, stderr = runner.communicate()
+    rc = runner.poll()
     if rc != expected_rc:
         opts = ' '.join(args)
         error = (
@@ -182,7 +179,7 @@ def run_about_command_test_click(options, expected_rc=0, monkeypatch=None,):
     """
     import click
     from click.testing import CliRunner
-    from attributecode import cmd
+    from aboutcode import cmd
     if monkeypatch:
         monkeypatch.setattr(click._termui_impl, 'isatty', lambda _: True)
         monkeypatch.setattr(click , 'get_terminal_size', lambda : (80, 43,))
@@ -210,3 +207,22 @@ def get_opts(options):
             return b' '.join(options)
         except:
             return b' '.join(map(repr, options))
+
+
+def check_json(expected, result, regen=False):
+    """
+    Assert that the contents of two JSON files are equal.
+    """
+
+    if isinstance(result, (unicode, str)):
+        with open(result) as r:
+            result = json.load(r, object_pairs_hook=OrderedDict)
+
+    if regen:
+        with open(expected, 'w') as o:
+            o.write(json.dumps(result, indent=2, separators=(',', ': ')))
+
+    with open(expected) as e:
+        expected = json.load(e, object_pairs_hook=OrderedDict)
+
+    assert expected == result

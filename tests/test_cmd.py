@@ -21,14 +21,14 @@ from __future__ import unicode_literals
 import io
 import unittest
 
-from attributecode import CRITICAL
-from attributecode import DEBUG
-from attributecode import ERROR
-from attributecode import INFO
-from attributecode import NOTSET
-from attributecode import WARNING
-from attributecode import cmd
-from attributecode import Error
+from aboutcode import CRITICAL
+from aboutcode import DEBUG
+from aboutcode import ERROR
+from aboutcode import INFO
+from aboutcode import NOTSET
+from aboutcode import WARNING
+from aboutcode import cmd
+from aboutcode import Error
 
 from testing_utils import run_about_command_test_click
 from testing_utils import get_test_loc
@@ -47,7 +47,7 @@ def test_report_errors(capsys):
         Error(DEBUG, 'msg4'),
         Error(NOTSET, 'msg4'),
     ]
-    ec = cmd.report_errors(errors, quiet=False, verbose=True, log_file_loc=None)
+    ec = cmd.report_errors(errors, verbose=True, log_file_loc=None)
     assert 3 == ec
     out, err = capsys.readouterr()
     expected_out = [
@@ -71,7 +71,7 @@ def test_report_errors_without_verbose(capsys):
         Error(DEBUG, 'msg4'),
         Error(NOTSET, 'msg4'),
     ]
-    ec = cmd.report_errors(errors, quiet=False, verbose=False, log_file_loc=None)
+    ec = cmd.report_errors(errors, verbose=False, log_file_loc=None)
     assert 3 == ec
     out, err = capsys.readouterr()
     expected_out = [
@@ -84,39 +84,6 @@ def test_report_errors_without_verbose(capsys):
     assert expected_out == out.splitlines(False)
 
 
-def test_report_errors_with_quiet_ignores_verbose_flag(capsys):
-    errors = [
-        Error(CRITICAL, 'msg1'),
-        Error(ERROR, 'msg2'),
-        Error(INFO, 'msg3'),
-        Error(WARNING, 'msg4'),
-        Error(DEBUG, 'msg4'),
-        Error(NOTSET, 'msg4'),
-        Error(WARNING, 'msg4'),
-    ]
-    severe_errors_count = cmd.report_errors(errors, quiet=True, verbose=True)
-    assert severe_errors_count == 3
-    out, err = capsys.readouterr()
-    assert '' == out
-    assert '' == err
-
-
-def test_report_errors_with_quiet_ignores_verbose_flag2(capsys):
-    errors = [
-        Error(CRITICAL, 'msg1'),
-        Error(ERROR, 'msg2'),
-        Error(INFO, 'msg3'),
-        Error(WARNING, 'msg4'),
-        Error(DEBUG, 'msg4'),
-        Error(NOTSET, 'msg4'),
-        Error(WARNING, 'msg4'),
-    ]
-    severe_errors_count = cmd.report_errors(errors, quiet=True, verbose=False)
-    assert severe_errors_count == 3
-    out, err = capsys.readouterr()
-    assert '' == out
-    assert '' == err
-
 def test_report_errors_with_verbose_flag(capsys):
     errors = [
         Error(CRITICAL, 'msg1'),
@@ -127,7 +94,7 @@ def test_report_errors_with_verbose_flag(capsys):
         Error(NOTSET, 'msg4'),
         Error(WARNING, 'msg4'),
     ]
-    severe_errors_count = cmd.report_errors(errors, quiet=False, verbose=True)
+    severe_errors_count = cmd.report_errors(errors, verbose=True)
     assert severe_errors_count == 3
     out, err = capsys.readouterr()
     expected_out = [
@@ -155,7 +122,7 @@ def test_report_errors_can_write_to_logfile():
     ]
 
     result_file = get_temp_file()
-    _ec = cmd.report_errors(errors, quiet=False, verbose=True,
+    _ec = cmd.report_errors(errors, verbose=True,
                            log_file_loc=result_file)
     with io.open(result_file, 'r', encoding='utf-8') as rf:
         result = rf.read()
@@ -183,7 +150,7 @@ def test_report_errors_does_not_report_duplicate_errors(capsys):
         Error(WARNING, 'msg4'),
         Error(CRITICAL, 'msg1'),
     ]
-    severe_errors_count = cmd.report_errors(errors, quiet=True, verbose=True)
+    severe_errors_count = cmd.report_errors(errors, verbose=True)
     assert severe_errors_count == 3
 
 
@@ -205,22 +172,6 @@ def test_get_error_messages():
         'ERROR: msg2',
         'WARNING: msg4',
     ]
-    assert expected == emsgs
-
-
-def test_get_error_messages_quiet():
-    errors = [
-        Error(CRITICAL, 'msg1'),
-        Error(ERROR, 'msg2'),
-        Error(INFO, 'msg3'),
-        Error(WARNING, 'msg4'),
-        Error(DEBUG, 'msg4'),
-        Error(NOTSET, 'msg4'),
-    ]
-
-    emsgs, ec = cmd.get_error_messages(errors, quiet=True)
-    assert 3 == ec
-    expected = []
     assert expected == emsgs
 
 
@@ -307,12 +258,14 @@ class TestParseKeyValues(unittest.TestCase):
             'keY=bar',
         ]
         expected = {
-            'key': ['value', 'bar'],
-            'this': ['THat']
+            'key': 'value',
+            'this': 'THat'
             }
         keyvals, errors = cmd.parse_key_values(test)
         assert expected == keyvals
-        assert not errors
+
+        expected_errs = ['duplicated <key> already defined: "keY=bar".']
+        assert expected_errs == errors
 
 
     def test_parse_key_values_with_errors(self):
@@ -323,7 +276,7 @@ class TestParseKeyValues(unittest.TestCase):
             'FOO=bar'
         ]
         expected = {
-            'foo': ['bar'],
+            'foo': 'bar',
         }
         keyvals, errors = cmd.parse_key_values(test)
         assert expected == keyvals
@@ -374,6 +327,23 @@ def test_about_gen_help_text():
         'test_cmd/help/about_gen_help.txt', regen=False)
 
 
+def test_about_fetch_licenses_help_text():
+    check_about_stdout(
+        ['fetch-licenses', '--help'],
+        'test_cmd/help/about_fetch_licenses_help.txt', regen=False)
+
+
+def test_about_transform_help_text():
+    check_about_stdout(
+        ['transform', '--help'],
+        'test_cmd/help/about_transform_help.txt', regen=False)
+
+
+def test_about_transform_expanded_help_text():
+    check_about_stdout(
+        ['transform', '--help-format'],
+        'test_cmd/help/about_transform_config_help.txt', regen=False)
+
 def test_about_check_help_text():
     check_about_stdout(
         ['check', '--help'],
@@ -385,6 +355,10 @@ def test_about_attrib_help_text():
         ['attrib', '--help'],
         'test_cmd/help/about_attrib_help.txt', regen=False)
 
+def test_about_reformat_help_text():
+    check_about_stdout(
+        ['reformat', '--help'],
+        'test_cmd/help/about_reformat_help.txt', regen=False)
 
 def test_about_command_fails_with_an_unknown_subcommand():
     test_dir = get_temp_dir()
@@ -414,15 +388,3 @@ def test_about_transform_command_can_run_minimally_without_error():
     test_file = get_test_loc('test_cmd/transform.csv')
     result = get_temp_file('file_name.csv')
     run_about_command_test_click(['transform', test_file, result])
-
-
-def test_about_transform_help_text():
-    check_about_stdout(
-        ['transform', '--help'],
-        'test_cmd/help/about_transform_help.txt', regen=False)
-
-
-def test_about_transform_expanded_help_text():
-    check_about_stdout(
-        ['transform', '--help-format'],
-        'test_cmd/help/about_transform_config_help.txt', regen=False)

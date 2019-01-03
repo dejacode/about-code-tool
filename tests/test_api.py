@@ -22,9 +22,10 @@ import unittest
 
 import mock
 
-from attributecode import api
-from attributecode import ERROR
-from attributecode import Error
+from aboutcode import api
+from aboutcode import ERROR
+from aboutcode import Error
+from aboutcode.model import License
 
 
 class FakeResponse(object):
@@ -49,14 +50,15 @@ class ApiTest(unittest.TestCase):
         errors = []
         request_license_data.return_value = license_data, errors
 
-        expected = (
-            'Apache License 2.0',
-            'apache-2.0',
-            'Apache License Version 2.0 ...',
-            [])
-        result = api.get_license_details_from_api(
-            api_url='api_url', api_key='api_key', license_key='license_key')
-        assert expected == result
+        expected = License(
+            key='apache-2.0',
+            name='Apache License 2.0',
+            text='Apache License Version 2.0 ...',
+            url=u'http://fake.url/urn/?urn=urn:dje:license:license_key')
+
+        result, errors = api.get_license_details(
+            api_url='http://fake.url/', api_key='api_key', license_key='license_key')
+        assert expected.to_dict() == result.to_dict()
 
     @mock.patch.object(api, 'urlopen')
     def test_api_request_license_data_with_result(self, mock_data):
@@ -78,5 +80,27 @@ class ApiTest(unittest.TestCase):
         mock_data.return_value = FakeResponse(response_content)
         license_data = api.request_license_data(
             api_url='http://fake.url/', api_key='api_key', license_key='apache-2.0')
-        expected = ({}, [Error(ERROR, "Invalid 'license': apache-2.0")])
+        expected = ({}, [Error(ERROR, "Invalid license key: apache-2.0")])
         assert expected == license_data
+
+
+    @mock.patch.object(api, 'urlopen')
+    def test_valid_api_url(self, mock_data):
+        mock_data.return_value = ''
+        assert api.valid_api_url('non_valid_url') is False
+
+    @mock.patch('aboutcode.api.have_network_connection')
+    @mock.patch('aboutcode.api.valid_api_url')
+    def test_fetch_licenses(self, have_network_connection, valid_api_url):
+        have_network_connection.return_value = True
+
+        valid_api_url.return_value = False
+        error_msg = (
+            'Network problem. Please check your Internet connection. '
+            'License retrieval is skipped.')
+        expected = ({}, [Error(ERROR, error_msg)])
+        assert api.fetch_licenses([], '', '') == expected
+
+        valid_api_url.return_value = True
+        expected = ({}, [])
+        assert api.fetch_licenses([], '', '') == expected
